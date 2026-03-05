@@ -28,7 +28,6 @@ def process_url_for_ml(raw_url):
     domain_data = extract_domain_features(raw_url)
 
     # 2. Reorder exactly to your XGBoost Training Columns
-    # We map the specific indexes from our 3 lists into the exact order your model expects.
     ordered_features = [
         address_data[0],   # 1. having_IP_Address
         address_data[1],   # 2. URL_Length
@@ -103,7 +102,6 @@ if __name__ == "__main__":
 
     try:
         # 3. Load the Saved MinMaxScaler and XGBoost Model
-        # (Make sure these .pkl files are in the same folder as this script!)
         print("[INFO] Loading MinMaxScaler and XGBoost model...")
         scaler = joblib.load('minmax_scaler.pkl')
         xgb_model = joblib.load('xgboost_phishing_model.pkl')
