@@ -129,23 +129,3 @@ def extract_domain_features(url):
         features["Links_pointing_to_page"],
         features["Statistical_report"]
     ]
-
-
-# --- TEST SCRIPT ---
-if __name__ == "__main__":
-    test_url = "https://www.github.com"
-    print(f"Querying WHOIS for: {test_url} ... Please wait a moment.")
-
-    domain_array = extract_domain_features(test_url)
-
-    feature_names = [
-        "age_of_domain", "DNSRecord", "Domain_registeration_length", "Abnormal_URL",
-        "web_traffic", "Page_Rank", "Google_Index",
-        "Links_pointing_to_page", "Statistical_report"
-    ]
-
-    print("\n=== DOMAIN FEATURE RESULTS ===")
-    print(f"Output Array: {domain_array}")
-    print(f"Features Extracted: {len(domain_array)}")
-    for name, value in zip(feature_names, domain_array):
-        print(f" - {name}: {value}")
