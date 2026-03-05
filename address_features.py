@@ -1,3 +1,6 @@
+import ssl
+import socket
+from datetime import datetime
 import re
 from urllib.parse import urlparse
 
@@ -89,21 +92,103 @@ def HTTPS_token(url):
         return -1
     return 1
 
+
 # Placeholders
 
-
 def SSLfinal_State(url):
-    # Rule: IF Use https and Issuer Is Trusted & Age >= 1 Years -> 1, Otherwise -> -1/0 [cite: 53]
-    # (Note: This is a placeholder. Real implementation requires the 'ssl' and 'socket' libraries)
-    if url.startswith("https"):
-        return 1
-    return -1
+    """
+    Checks HTTPS usage, issuer trust, and certificate age natively.
+    """
+    if not url.startswith("https"):
+        return -1  # Phishing if no HTTPS [cite: 53]
+
+    try:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc if parsed_url.netloc else parsed_url.path.split(
+            '/')[0]
+        # Remove www. if present
+        if domain.startswith("www."):
+            domain = domain[4:]
+
+        # List of trusted issuers from the research document [cite: 51]
+        trusted_issuers = ["GeoTrust", "GoDaddy", "Network Solutions", "Thawte",
+                           "Comodo", "Doster", "VeriSign", "Let's Encrypt", "DigiCert", "GlobalSign"]
+
+        # Connect to the server and pull the certificate
+        context = ssl.create_default_context()
+        with socket.create_connection((domain, 443), timeout=3) as sock:
+            with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                cert = ssock.getpeercert()
+
+        # Check Issuer
+        issuer_dict = dict(x[0] for x in cert['issuer'])
+        issuer_name = issuer_dict.get(
+            'organizationName', issuer_dict.get('commonName', 'Unknown'))
+
+        is_trusted = any(trusted in issuer_name for trusted in trusted_issuers)
+
+        # Check Certificate Age
+        not_before = datetime.strptime(
+            cert['notBefore'], '%b %d %H:%M:%S %Y %Z')
+        not_after = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+        age_in_days = (not_after - not_before).days
+
+        # Rule Logic [cite: 53]
+        if is_trusted and age_in_days >= 365:
+            return 1  # Legitimate
+        elif not is_trusted:
+            return 0  # Suspicious
+        else:
+            return -1  # Phishing
+
+    except Exception as e:
+        # If the SSL handshake fails, the certificate is invalid or expired
+        return -1
 
 
 def port_status(url):
-    # Rule: IF Port # is of the Preferred Status -> Phishing (-1), Otherwise -> Legitimate (1) [cite: 68-69]
-    # (Note: Real implementation requires 'socket' library to scan ports 21, 22, 80, etc.)
-    return 1
+    """
+    Natively scans the domain to check if specific ports match their preferred status.
+    """
+    try:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc if parsed_url.netloc else parsed_url.path.split(
+            '/')[0]
+        if domain.startswith("www."):
+            domain = domain[4:]
+
+        # Define the ports and their preferred status (True = Open, False = Close)
+        ports_to_check = {
+            21: False,   # FTP
+            22: False,   # SSH
+            23: False,   # Telnet
+            80: True,    # HTTP
+            443: True,   # HTTPS
+            445: False,  # SMB
+            1433: False,  # MSSQL
+            1521: False,  # ORACLE
+            3306: False,  # MySQL
+            3389: False  # Remote Desktop
+        }
+
+        # Scan the ports
+        for port, preferred_open in ports_to_check.items():
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.5)  # Extremely short timeout for speed
+            result = sock.connect_ex((domain, port))
+            sock.close()
+
+            is_open = (result == 0)
+
+            # If the actual status doesn't match the preferred secure status, flag it
+            if is_open != preferred_open:
+                return -1  # Phishing
+
+        return 1  # Legitimate (All ports match preferred status)
+
+    except Exception:
+        # If we can't resolve the host at all
+        return -1
 
 
 def extract_address_features(url):

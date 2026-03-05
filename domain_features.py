@@ -1,3 +1,8 @@
+import base64
+import pandas as pd
+import csv
+from pyexpat import features
+import requests
 import whois
 from datetime import datetime
 from urllib.parse import urlparse
@@ -93,29 +98,125 @@ def extract_domain_features(url):
         # the defaults remain -1 for the WHOIS-based features.
         pass
 
-    # ==========================================
-    # API PLACEHOLDERS FOR REMAINING FEATURES
-    # ==========================================
-
     # 5. Website Traffic [cite: 142-148]
-    # Rule: <100,000 -> 1, >100,000 -> 0, Otherwise -> -1 [cite: 148]
-    features["web_traffic"] = 1
+    # Rule: <100,000 -> 1, >100,000 -> 0, Otherwise -> -1
+    try:
+        # Read the CSV using pandas (much faster optimized C backend)
+        # We only need the rank (index) and the domain string
+        df_tranco = pd.read_csv(
+            "tranco_6GPNX-1m.csv/top-1m.csv", header=None, names=['rank', 'domain'])
+
+        # Check if our target domain exists in the 'domain' column
+        match = df_tranco[df_tranco['domain'] == domain]
+
+        if not match.empty:
+            # Get the rank integer
+            rank = match['rank'].values[0]
+
+            if rank < 100000:
+                features["web_traffic"] = 1
+            else:
+                features["web_traffic"] = 0
+        else:
+            # Not in the top 1 million
+            features["web_traffic"] = -1
+
+    except Exception as e:
+        print(f"[WARNING] Tranco list failed to load: {e}")
+        features["web_traffic"] = -1
 
     # 6. PageRank [cite: 149-154]
     # Rule: PageRank < 0.2 -> -1, Otherwise -> 1 [cite: 154]
-    features["Page_Rank"] = 1
+    try:
+        url = "https://openpagerank.com/api/v1.0/getPageRank"
+        headers = {"API-OPR": "8ogow0s80wgcswk84gg0wckwcckcggccgo8swos4"}
+        params = {"domains[]": domain}
+
+        r = requests.get(url, headers=headers, params=params)
+        data = r.json()
+
+        rank = data["response"][0]["page_rank_decimal"]
+
+        if rank < 0.2:
+            features["Page_Rank"] = -1
+        else:
+            features["Page_Rank"] = 1
+    except:
+        features["Page_Rank"] = -1
 
     # 7. Google Index [cite: 155-159]
     # Rule: Indexed by Google -> 1, Otherwise -> -1 [cite: 159]
-    features["Google_Index"] = 1
+    try:
+        API_KEY = "36c23eba506df82f1e801a4b474893a0ca2070e48d57905ad714125b433758e0"
+
+        headers = {
+            "x-apikey": API_KEY
+        }
+
+        r = requests.get(
+            f"https://www.virustotal.com/api/v3/domains/{domain}",
+            headers=headers
+        )
+
+        data = r.json()
+
+        if data["data"]["attributes"]["last_analysis_stats"]["malicious"] > 0:
+            features["Google_Index"] = -1
+        else:
+            features["Google_Index"] = 1
+    except:
+        features["Google_Index"] = -1
 
     # 8. Links Pointing to Page [cite: 160-164]
     # Rule: 0 -> -1, >0 and <=2 -> 0, Otherwise -> 1 [cite: 164]
-    features["Links_pointing_to_page"] = 1
+    try:
+        r = requests.get(f"https://api.hackertarget.com/pagelinks/?q={domain}")
+        links = r.text.split("\n")
+        count = len([l for l in links if l.strip() != ""])
 
-    # 9. Statistical Report [cite: 165-168]
-    # Rule: Belongs to Top Phishing IPs/Domains -> -1, Otherwise -> 1 [cite: 168]
-    features["Statistical_report"] = 1
+        if count == 0:
+            features["Links_pointing_to_page"] = -1
+        elif count <= 2:
+            features["Links_pointing_to_page"] = 0
+        else:
+            features["Links_pointing_to_page"] = 1
+    except:
+        features["Links_pointing_to_page"] = -1
+
+   # 9. Statistical Report [cite: 165-168]
+    # Rule: Belongs to Top Phishing IPs/Domains -> -1, Otherwise -> 1
+    try:
+        # Insert your actual VirusTotal API key here
+        vt_api_key = "36c23eba506df82f1e801a4b474893a0ca2070e48d57905ad714125b433758e0"
+
+        # VirusTotal v3 API requires the URL to be base64 encoded to act as the ID
+        url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
+        vt_endpoint = f"https://www.virustotal.com/api/v3/urls/{url_id}"
+
+        headers = {
+            "accept": "application/json",
+            "x-apikey": vt_api_key
+        }
+
+        response = requests.get(vt_endpoint, headers=headers, timeout=5)
+
+        if response.status_code == 200:
+            result = response.json()
+            # Get the number of security vendors that flagged this URL as malicious/phishing
+            malicious_votes = result["data"]["attributes"]["last_analysis_stats"]["malicious"]
+
+            # If even 1 security vendor (like PhishTank or Kaspersky) flags it, we mark as Phishing
+            if malicious_votes > 0:
+                features["Statistical_report"] = -1
+            else:
+                features["Statistical_report"] = 1
+        else:
+            # If the URL hasn't been scanned by VT yet, or API limit reached
+            features["Statistical_report"] = 1
+
+    except Exception as e:
+        print(f"[WARNING] Statistical Report API failed: {e}")
+        features["Statistical_report"] = 1
 
     # Return exactly 9 features in an ordered list
     return [
