@@ -44,14 +44,27 @@ def analyze():
         scaled_input = scaler.transform(input_df)
         scaled_df = pd.DataFrame(scaled_input, columns=feature_names)
 
-        # 0 is Phishing based on your training mapping
-        prediction = int(xgb_model.predict(scaled_df)[0])
-        is_phishing = (prediction == 0)
+        # Use predict_proba to get the exact percentages
+        probabilities = xgb_model.predict_proba(scaled_df)[0]
+
+        # Class 0 is Phishing, Class 1 is Legitimate
+        phish_prob = float(probabilities[0])
+        legit_prob = float(probabilities[1])
+
+        is_phishing = bool(phish_prob > legit_prob)
+
+        # Calculate how confident the AI is in its final answer (e.g., 98.5%)
+        confidence_score = round(max(phish_prob, legit_prob) * 100, 2)
+
+        # Calculate a threat score from 0 to 100 for the UI Needle
+        threat_score = round(phish_prob * 100, 2)
 
         # Send the JSON response back to the JavaScript
         return jsonify({
             'isPhishing': is_phishing,
-            'features': features
+            'features': features,
+            'confidence': confidence_score,
+            'threatScore': threat_score
         })
 
     except Exception as e:

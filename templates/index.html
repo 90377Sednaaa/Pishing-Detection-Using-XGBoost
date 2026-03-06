@@ -754,6 +754,32 @@
         </div>
 
         <div class="features-header">Feature Analysis</div>
+        <div
+          class="confidence-section fade-in"
+          id="confidenceSection"
+          style="display: none"
+        >
+          <div class="confidence-label">
+            // THREAT LEVEL ASSESSMENT
+            <span
+              id="confidenceText"
+              style="
+                float: right;
+                color: var(--accent);
+                font-family: &quot;Orbitron&quot;, monospace;
+              "
+            ></span>
+          </div>
+          <div class="threat-meter">
+            <div class="threat-needle" id="threatNeedle"></div>
+          </div>
+          <div class="meter-labels">
+            <span style="color: var(--safe)">SAFE</span>
+            <span style="color: var(--warn)">SUSPICIOUS</span>
+            <span style="color: var(--danger)">PHISHING</span>
+            <span> </span>
+          </div>
+        </div>
         <div class="features-grid" id="featuresGrid"></div>
 
         <button class="reset-btn" onclick="resetUI()">
@@ -889,6 +915,8 @@
           result = {
             isPhishing: data.isPhishing,
             features: data.features,
+            confidence: data.confidence, // NEW
+            threatScore: data.threatScore, // NEW
           };
         } catch (err) {
           document.getElementById("scanOverlay").classList.remove("active");
@@ -915,6 +943,18 @@
         const grid = document.getElementById("featuresGrid");
 
         scanned.textContent = url;
+
+        // Show confidence section and update text
+        document.getElementById("confidenceSection").style.display = "block";
+        document.getElementById("confidenceText").textContent =
+          `AI CONFIDENCE: ${result.confidence}%`;
+
+        // Move the needle based on the threat score (0% to 100%)
+        const needle = document.getElementById("threatNeedle");
+        setTimeout(() => {
+          needle.style.left =
+            Math.min(97, Math.max(3, result.threatScore)) + "%";
+        }, 100);
 
         if (result.isPhishing) {
           card.className = "verdict-card phishing fade-in";
