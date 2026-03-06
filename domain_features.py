@@ -123,7 +123,7 @@ def extract_domain_features(url):
 
     except Exception as e:
         print(f"[WARNING] Tranco list failed to load: {e}")
-        features["web_traffic"] = -1
+        features["web_traffic"] = 0
 
     # 6. PageRank [cite: 149-154]
     # Rule: PageRank < 0.2 -> -1, Otherwise -> 1 [cite: 154]
@@ -181,7 +181,7 @@ def extract_domain_features(url):
         else:
             features["Links_pointing_to_page"] = 1
     except:
-        features["Links_pointing_to_page"] = -1
+        features["Links_pointing_to_page"] = 0
 
    # 9. Statistical Report [cite: 165-168]
     # Rule: Belongs to Top Phishing IPs/Domains -> -1, Otherwise -> 1
@@ -216,7 +216,7 @@ def extract_domain_features(url):
 
     except Exception as e:
         print(f"[WARNING] Statistical Report API failed: {e}")
-        features["Statistical_report"] = 1
+        features["Statistical_report"] = 0
 
     # Return exactly 9 features in an ordered list
     return [
