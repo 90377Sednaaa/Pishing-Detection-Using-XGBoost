@@ -34,13 +34,12 @@ def extract_html_features(url):
         html_text = response.text.lower()
 
         # 1. Redirect
+        # ARFF dataset only accepts 0 or 1 for this feature
         redirect_count = len(response.history)
         if redirect_count <= 1:
             features["Redirect"] = 1
-        elif 2 <= redirect_count < 4:
-            features["Redirect"] = 0
         else:
-            features["Redirect"] = -1
+            features["Redirect"] = 0  # Map both Suspicious and Phishing to 0
 
         # 2. Submitting to email
         if "mail()" in html_text or "mailto:" in html_text:
@@ -112,6 +111,7 @@ def extract_html_features(url):
             features["Favicon"] = 1
 
         # 10. Request_URL (Images/Video/Audio loaded from outside domains)
+        # ARFF dataset only accepts 1 or -1 for this feature
         media_tags = soup.find_all(['img', 'audio', 'embed', 'iframe'])
         bad_media = sum(1 for tag in media_tags if tag.get(
             'src', '').startswith('http') and domain not in tag.get('src', ''))
@@ -119,10 +119,8 @@ def extract_html_features(url):
             req_percentage = (bad_media / len(media_tags)) * 100
             if req_percentage < 22:
                 features["Request_URL"] = 1
-            elif 22 <= req_percentage <= 61:
-                features["Request_URL"] = 0
             else:
-                features["Request_URL"] = -1
+                features["Request_URL"] = -1  # Map everything >= 22% to -1
         else:
             features["Request_URL"] = 1
 
