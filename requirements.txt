@@ -1,0 +1,8 @@
+Flask
+xgboost
+pandas
+scikit-learn==1.6.1
+joblib
+beautifulsoup4
+requests
+python-whois
