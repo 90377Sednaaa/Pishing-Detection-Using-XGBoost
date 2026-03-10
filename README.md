@@ -43,7 +43,9 @@ pip install scikit-learn==1.6.1
 
 After installing the required dependencies, run the main program:
 
-python main.py
+python app.py
+
+then in the terminal there will be a localhost link which you can access the site
 
 
 
