@@ -3,6 +3,7 @@ import socket
 from datetime import datetime
 import re
 from urllib.parse import urlparse
+import ipaddress
 
 
 def get_domain(url):
@@ -19,10 +20,26 @@ def get_domain(url):
 def having_IP_Address(url):
     # Rule: IF The Domain Part has an IP Address -> Phishing (-1) Otherwise -> Legitimate (1)
     domain = get_domain(url)
-    ip_pattern = re.compile(
-        r'(([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])|(0x[0-9a-fA-F]{2}\.){3}0x[0-9a-fA-F]{2})')
-    if ip_pattern.search(domain):
+
+    # 1. First, check if it's a valid IPv4 or IPv6 address using Python's native library
+    try:
+        ipaddress.ip_address(domain)
+        return -1  # It is exactly an IP address
+    except ValueError:
+        pass  # Not a standard IP, continue to regex fallback
+
+    # 2. Fallback Regex to catch obfuscated Hex/Decimal IPs hidden in the domain string
+    # This covers standard IPv4, Hex (0x...), and Decimal obfuscation
+    obfuscated_ip_pattern = re.compile(
+        # Standard IPv4
+        r'(([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])\.([01]?\d\d?|2[0-4]\d|25[0-5])'
+        r'|(0x[0-9a-fA-F]{2}\.){3}0x[0-9a-fA-F]{2}'  # Hexadecimal
+        r'|^\d+$)'  # Pure Decimal IP (e.g., 2103511411)
+    )
+
+    if obfuscated_ip_pattern.search(domain):
         return -1
+
     return 1
 
 
