@@ -14,39 +14,64 @@ An Machine Learning pipeline that detects whether a given URL is **Phishing** or
 
 Before running this project, make sure you have:
 
-- Python **3.8 or higher**
-- Internet connection (for WHOIS and webpage requests)
+- **Python 3.8+** installed
+- Active internet connection (for WHOIS, HTML scraping, and API lookups)
+- Tranco Dataset folder (`tranco_6GPNX-1m.csv`) present in the directory
+- A modern web browser
 
----
+## Installation & Setup
 
-## Installation
+### Step 1: Clone/Download the Project
 
-Install the required dependencies using `pip`.
+Place the project folder on your local machine and open a terminal or command prompt inside the project directory.
 
-### 1. Web Requests and HTML Parsing
+### Step 2: Install Dependencies
 
-pip install requests beautifulsoup4
+Install the required Python libraries using pip. It is highly recommended to strictly use `scikit-learn==1.6.1` to ensure compatibility with the pre-trained model files.
 
-### 2. Domain Information Lookup
+```bash
+pip install Flask xgboost pandas scikit-learn==1.6.1 joblib beautifulsoup4 requests python-whois
+```
 
-pip install python-whois
+### Step 3: Project Structure
 
-### 3. Data Processing and Machine Learning
+```text
+Phishing-Detection-Using-XGBoost/
+├── app.py                      # Flask backend and API bridge
+├── main.py                     # Orchestrator for feature aggregation
+├── address_features.py         # Lexical properties and SSL validation
+├── html_features.py            # DOM scraping (iframes, right-clicks, etc.)
+├── domain_features.py          # WHOIS, Tranco, and VirusTotal APIs
+├── xgboost_phishing_model.pkl  # Pre-trained XGBoost model
+├── minmax_scaler.pkl           # Mathematical scaler for input normalization
+├── templates/
+│   └── index.html              # Custom frontend user interface
+└── tranco_6GPNX-1m.csv/
+    └── top-1m.csv              # Local web traffic analysis database
+```
 
-pip install pandas scipy scikit-learn joblib
+### Step 4: Start the Flask Server
 
-### 4. XGBoost Model
+1. Open your terminal or command prompt.
+2. Ensure you are in the project directory.
+3. Start the application by running:
 
-pip install xgboost
+```bash
+python app.py
+```
 
-### 5. Required Scikit-Learn Version
+### Step 5: Access the Application
 
-pip install scikit-learn==1.6.1
+Open your browser and navigate to the local server address provided in the terminal:
 
----
+```
+http://127.0.0.1:5000/
+```
 
-## Running the Project
+## How to Use
 
-After installing the required dependencies, run the main program:
-
-python main.py
+1. Access the web interface via your browser.
+2. Paste the target URL you want to analyze into the input box (e.g., `https://www.google.com`).
+3. Click the **SCAN** button to initialize the pipeline.
+4. Wait for the scanning animation to complete as the backend orchestrates the lexical, HTML, and domain feature extraction.
+5. Review the final verdict (**Legitimate** or **Phishing**), the AI's percentage-based confidence score, and the color-coded feature breakdown grid.
