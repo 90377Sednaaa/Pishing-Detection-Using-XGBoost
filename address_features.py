@@ -4,6 +4,8 @@ from datetime import datetime
 import re
 from urllib.parse import urlparse
 import ipaddress
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 
 def get_domain(url):
@@ -114,52 +116,72 @@ def HTTPS_token(url):
 
 def SSLfinal_State(url):
     """
-    Checks HTTPS usage, issuer trust, and certificate age natively.
+    Checks HTTPS usage, issuer trust, and certificate age using strict X.509 parsing.
+    Requires: pip install cryptography
     """
     if not url.startswith("https"):
-        return -1  # Phishing if no HTTPS [cite: 53]
+        return -1  # Phishing if no HTTPS
 
     try:
         parsed_url = urlparse(url)
         domain = parsed_url.netloc if parsed_url.netloc else parsed_url.path.split(
             '/')[0]
+
         # Remove www. if present
         if domain.startswith("www."):
             domain = domain[4:]
 
-        # List of trusted issuers from the research document [cite: 51]
-        trusted_issuers = ["GeoTrust", "GoDaddy", "Network Solutions", "Thawte",
-                           "Comodo", "Doster", "VeriSign", "Let's Encrypt", "DigiCert", "GlobalSign"]
+        # Expanded list of modern trusted issuers
+        trusted_issuers = [
+            "GeoTrust", "GoDaddy", "Network Solutions", "Thawte", "Comodo",
+            "Doster", "VeriSign", "Let's Encrypt", "DigiCert", "GlobalSign",
+            "Cloudflare", "Google Trust Services", "Amazon", "Sectigo",
+            "IdenTrust", "ZeroSSL", "RapidSSL", "Entrust", "Gandi"
+        ]
 
-        # Connect to the server and pull the certificate
+        # Connect to the server and pull the raw binary certificate
         context = ssl.create_default_context()
         with socket.create_connection((domain, 443), timeout=3) as sock:
             with context.wrap_socket(sock, server_hostname=domain) as ssock:
-                cert = ssock.getpeercert()
+                # binary_form=True is the key! It gets the uncorrupted, raw cert data
+                der_cert = ssock.getpeercert(binary_form=True)
 
-        # Check Issuer
-        issuer_dict = dict(x[0] for x in cert['issuer'])
-        issuer_name = issuer_dict.get(
-            'organizationName', issuer_dict.get('commonName', 'Unknown'))
+        # Parse the binary certificate using cryptography
+        cert = x509.load_der_x509_certificate(der_cert, default_backend())
 
+        # Extract all issuer attributes (Organization Name, Common Name, etc.) safely
+        issuer_name = ""
+        for attribute in cert.issuer:
+            issuer_name += str(attribute.value) + " "
+
+        # Check if any of our trusted names are in the issuer string
         is_trusted = any(trusted in issuer_name for trusted in trusted_issuers)
 
-        # Check Certificate Age
-        not_before = datetime.strptime(
-            cert['notBefore'], '%b %d %H:%M:%S %Y %Z')
-        not_after = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
-        age_in_days = (not_after - not_before).days
+        # Safely extract the exact dates (cryptography returns naive UTC datetime objects)
+        not_before = cert.not_valid_before
+        not_after = cert.not_valid_after
+        now = datetime.utcnow()  # Use UTC to match the certificate's standard time
 
-        # Rule Logic [cite: 53]
-        if is_trusted and age_in_days >= 365:
-            return 1  # Legitimate
-        elif not is_trusted:
-            return 0  # Suspicious
+        # 1. Is the certificate currently valid right now?
+        is_valid_now = not_before <= now <= not_after
+
+        # 2. How many days has this certificate been active?
+        current_age_days = (now - not_before).days
+
+        # Modern Rule Logic
+        if is_trusted and is_valid_now:
+            if current_age_days >= 30:
+                # Legitimate: Trusted, valid, and established (> 1 month old)
+                return 1
+            else:
+                return 0  # Suspicious: Trusted and valid, but very recently created
+        elif not is_trusted and is_valid_now:
+            return 0      # Suspicious: Valid, but unknown/unlisted issuer
         else:
-            return -1  # Phishing
+            return -1     # Phishing: Expired or not yet valid
 
     except Exception as e:
-        # If the SSL handshake fails, the certificate is invalid or expired
+        # Fails safely if the site is dead, times out, or certificate is completely invalid
         return -1
 
 
